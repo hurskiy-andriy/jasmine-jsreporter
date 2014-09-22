@@ -1,0 +1,27 @@
+{
+  "name": "jasmine-jsreporter",
+  "version": "0.0.1",
+  "description": "The purpose of this reporter is to make it easier to extract informations about the executed Test Results, without having to parse the DOM. The results are just a plain JavaScript Object (aka JSON).",
+  "main": "jasmine-jsreporter.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/almamedia/jasmine-jsreporter"
+  },
+  "keywords": [
+    "jasmin",
+    "reporter",
+    "json"
+  ],
+  "author": "",
+  "license": "BSD",
+  "bugs": {
+    "url": "https://github.com/almamedia/jasmine-jsreporter/issues"
+  },
+  "homepage": "https://github.com/almamedia/jasmine-jsreporter"
+}
