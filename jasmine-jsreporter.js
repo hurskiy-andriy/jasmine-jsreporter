@@ -1,12 +1,9 @@
 /*
   This file is part of the Jasmine JSReporter project from Ivan De Marino.
-
   Copyright (C) 2011-2014 Ivan De Marino <http://ivandemarino.me>
   Copyright (C) 2014 Alex Treppass <http://alextreppass.co.uk>
-
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are met:
-
     * Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
     * Redistributions in binary form must reproduce the above copyright
@@ -15,7 +12,6 @@
     * Neither the name of the <organization> nor the
       names of its contributors may be used to endorse or promote products
       derived from this software without specific prior written permission.
-
   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -27,6 +23,7 @@
   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+/* eslint-disable */
 (function (jasmine) {
 
   if (!jasmine) {
@@ -252,7 +249,10 @@
 
   JSR.suiteDone = function (suite) {
     suite = this._cacheSuite(suite);
-    suite.duration = suite.timer.elapsed();
+    suite.duration = 0;
+    if (suite && suite.timer && suite.timer.elapsed) {
+      suite.duration = suite.timer.elapsed();
+    }
     suite.durationSec = suite.duration / 1000;
     this.suiteStack.pop();
 
@@ -280,7 +280,11 @@
   JSR.specDone = function (spec) {
     spec = this._cacheSpec(spec);
 
-    spec.duration = spec.timer.elapsed();
+    if (spec && spec.timer && spec.timer.elapsed) {
+      spec.duration = spec.timer.elapsed();
+    } else {
+      spec.duration = 0;
+    }
     spec.durationSec = spec.duration / 1000;
 
     spec.skipped = spec.status === 'pending';
@@ -310,7 +314,10 @@
     if (spec.failed) {
       parent.failingSpecs.push(spec);
     }
-    parent.passed = parent.passed && spec.passed;
+
+    if (parent) {
+      parent.passed = parent.passed && spec.passed;
+    }
 
     // keep report representation clean
     delete spec.timer;
@@ -324,6 +331,9 @@
   };
 
   JSR.jasmineDone = function () {
+    if (window.blanket) {
+      window.blanket.onTestsDone();
+    }
     this._buildReport();
   };
 
@@ -373,20 +383,130 @@
   JSR._buildReport = function () {
     var overallDuration = 0;
     var overallPassed = true;
-    var overallSuites = [];
-
-    for (var i = 0, j = this.rootSuites.length; i < j; i++) {
-      var suite = this.suites[this.rootSuites[i]];
-      overallDuration += suite.duration;
-      overallPassed = overallPassed && suite.passed;
-      overallSuites.push(suite);
+    var passedCount = 0;
+    var failedCount = 0;
+    var self = this;
+    var processSuites = function (suites) {
+      var overallSuites = []
+      for (var i = 0, j = suites.length; i < j; i++) {
+        var suite = suites[i]
+        if (typeof suites[i] !== 'object') {
+          suite = self.suites[suites[i]]
+        }
+        overallDuration += suite.duration
+        overallPassed = overallPassed && suite.passed
+        const failures = []
+        const specs = suite.specs.map((spec) => {
+          const ret = {
+            description: spec.description,
+            passed: spec.passed
+          }
+          if (spec.failures && spec.failures.length > 0) {
+            ret.failures = spec.failures
+            failures.push(spec.failures)
+          }
+          return ret
+        })
+        const res = {
+          result: suite.passed,
+          message: suite.description,
+          suits: processSuites(suite.suites),
+          // specs
+        }
+        if (failures.length > 0) {
+          res.failures = failures
+        }
+        overallSuites.push(res)
+        if (suite.passed) {
+          passedCount++
+        } else {
+          failedCount++
+        }
+      }
+      return overallSuites
     }
 
+    var overallSuites = processSuites(this.rootSuites);
+
     jasmine.jsReport = {
-      passed: overallPassed,
-      durationSec: overallDuration / 1000,
-      suites: overallSuites
+      passed: passedCount,
+      failed: failedCount,
+      total: passedCount + failedCount,
+      duration: overallDuration,
+      tests: overallSuites
     };
+
+    if (window._$blanket) {
+      var files = window._$blanket
+      var totals = {
+        totalSmts: 0,
+        numberOfFilesCovered: 0,
+        passedBranches: 0,
+        totalBranches: 0,
+        moduleTotalStatements : {},
+        moduleTotalCoveredStatements : {},
+        moduleTotalBranches : {},
+        moduleTotalCoveredBranches : {}
+      };
+      for(var file in files)
+      {
+          if (!files.hasOwnProperty(file)) {
+              continue;
+          }
+
+          var statsForFile = files[file],
+              totalSmts = 0,
+              numberOfFilesCovered = 0,
+              code = [],
+              i,
+              escapeInvalidXmlChars = function (str) {
+                  return str.replace(/\&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/\>/g, "&gt;")
+                      .replace(/\"/g, "&quot;")
+                      .replace(/\'/g, "&apos;");
+              }
+
+
+          var end = [];
+          for(i = 0; i < statsForFile.source.length; i +=1){
+              var src = statsForFile.source[i];
+              src = escapeInvalidXmlChars(src);
+              if(statsForFile[i+1]) {
+                numberOfFilesCovered += 1;
+                totalSmts += 1;
+              }else{
+                if(statsForFile[i+1] === 0){
+                    totalSmts++;
+                }
+              }
+          }
+          totals.totalSmts += totalSmts;
+          totals.numberOfFilesCovered += numberOfFilesCovered;
+          var totalBranches=0;
+          var passedBranches=0;
+          if (typeof statsForFile.branchData !== 'undefined'){
+            for(var j=0;j<statsForFile.branchData.length;j++){
+              if (typeof statsForFile.branchData[j] !== 'undefined'){
+                for(var k=0;k<statsForFile.branchData[j].length;k++){
+                  if (typeof statsForFile.branchData[j][k] !== 'undefined'){
+                    totalBranches++;
+                    if (typeof statsForFile.branchData[j][k][0] !== 'undefined' &&
+                      statsForFile.branchData[j][k][0].length > 0 &&
+                      typeof statsForFile.branchData[j][k][1] !== 'undefined' &&
+                      statsForFile.branchData[j][k][1].length > 0){
+                      passedBranches++;
+                    }
+                  }
+                }
+              }
+            }
+          }
+          totals.passedBranches += passedBranches;
+          totals.totalBranches += totalBranches;
+      }
+      jasmine.jsReport.coverage = totals
+    }
   };
 
 })(jasmine);

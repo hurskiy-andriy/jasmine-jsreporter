@@ -23,5 +23,8 @@
   "bugs": {
     "url": "https://github.com/almamedia/jasmine-jsreporter/issues"
   },
-  "homepage": "https://github.com/almamedia/jasmine-jsreporter"
+  "homepage": "https://github.com/almamedia/jasmine-jsreporter",
+  "dependencies": {
+    "blanket": "^1.2.3"
+  }
 }
